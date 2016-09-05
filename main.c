@@ -14,6 +14,9 @@
 struct arguments {
 	char* node;
 	char* port;
+	char* pve_protover;
+	char* pve_softver;
+	char* pve_comment;
 };
 
 /**
@@ -47,24 +50,40 @@ void usage_print(char* message, char argv[]) {
 
 void arguments_parse(int argc, char* argv[], struct arguments* arguments) {
 	static struct option options[] = {
+		{"comment", required_argument, NULL, 'c'},
 		{"help", no_argument,  NULL, 'h'},
+		{"protover", required_argument, NULL, 'p'},
+		{"softver", required_argument, NULL, 's'},
 		{0, 0, 0, 0}
 	};
 
+	// Set argument defaults.
 	memset(arguments, 0, sizeof(*arguments));
+	arguments->pve_protover = "2.0";
+	arguments->pve_softver = "ssherp";
+	arguments->pve_comment = NULL;
 
 	// Parse optional arguments.
 	int c;
 	int index;
 	while (1) {
-		c = getopt_long(argc, argv, "h", options, &index);
+		c = getopt_long(argc, argv, "c:hp:s:", options, &index);
 		if (c == -1) {
 			// No more arguments.
 			break;
 		}
 		switch(c) {
+		case 'c':
+			arguments->pve_comment = optarg;
+			break;
 		case 'h':
 			usage_print(NULL, argv[0]);
+			break;
+		case 'p':
+			arguments->pve_protover = optarg;
+			break;
+		case 's':
+			arguments->pve_softver = optarg;
 			break;
 		case '?':
 			usage_print("Unknown option", argv[0]);
@@ -106,7 +125,6 @@ int main(int argc, char* argv[]) {
 	addrinfo_hint.ai_family = AF_INET;
 	addrinfo_hint.ai_socktype = SOCK_STREAM;
 	addrinfo_hint.ai_protocol = IPPROTO_TCP;
-	fprintf(stderr, "Node: '%s', port: '%s'\n", arguments.node, arguments.port);
 	if (ret = getaddrinfo(arguments.node, arguments.port,
 		&addrinfo_hint, &addrinfo_res)) {
 		fprintf(stderr, "'getaddrinfo': %s\n", gai_strerror(ret));
@@ -118,12 +136,32 @@ int main(int argc, char* argv[]) {
 	if (connect(fd, (struct sockaddr*)addrinfo_res->ai_addr,
 		addrinfo_res->ai_addrlen) == -1) {
 		perror("Connecting");
+		freeaddrinfo(addrinfo_res);
 		goto out1;
 	}
 	freeaddrinfo(addrinfo_res);
 
 	// Send/recieve protocol version exchange.
-	// TODO.
+	char buffer[256];
+	snprintf(buffer, sizeof(buffer), "SSH-%s-%s%s%s\r\n",
+		arguments.pve_protover, arguments.pve_softver,
+		arguments.pve_comment ? " " : "",
+		arguments.pve_comment ? arguments.pve_comment : "");
+	if (write(fd, buffer, strlen(buffer)) < strlen(buffer)) {
+		perror("Unable to write Protocol Version Exchange\n");
+		goto out1;
+	}
+	char readbuf[256];
+	memset(readbuf, 0, sizeof(readbuf));
+	// TODO: Handle potential pre-messages, which is a giant PITA.
+	if ((ret = read(fd, readbuf, sizeof(readbuf))) == -1) {
+		perror("Unable to read PVE from server.\n");
+		goto out1;
+	}
+	if (strncmp(readbuf, "SSH-", 4)) {
+		fprintf(stderr, "Unexpected protocol ident");
+		goto out1;
+	}
 
 	// Exit the program.
 	exit(EXIT_SUCCESS);
