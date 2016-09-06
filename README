@@ -1,0 +1,27 @@
+			ssherp
+
+Send stupid messages to your friend's ssh servers!
+
+This works because the parameters for various aspects of the encrypted
+connection are identified by name and, in order to allow extensibility,
+algorithms that have not yet been invented may also be specified in the comma-
+separated list.  This can be exploited by sending silly messages instead
+of proper algorithm names, causing the daemon to (most likely) log an error
+with the bogus algorithm name, thus adding weirdness to a system administrator's
+logs.
+
+For example, invoking the program as:
+
+	./ssherp -x oh-god-how-did-this-get-here-i-am-not-good-with-computer 127.0.0.1
+
+while running a local 'sshd' produced the following log output:
+
+	Sep  5 21:01:27 plato sshd[2484]: fatal: Unable to negotiate with 127.0.0.1 port 42060: no matching key exchange method found. Their offer: oh-god-how-did-this-get-here-i-am-not-good-with-computer [preauth]
+
+Other parameters may be specified as well, see '--help' for more options!
+
+Gotchas:
+
+1) When spoofing the MAC (Message Authentication Code), make sure to specify a
+valid encryption algorithm.  Specifically, 'chacha20-poly1305@openssh.com'
+has a MAC as part of the encryption, thus any spoofed MAC would be ignored.
