@@ -1,4 +1,5 @@
 cc=gcc
+cflags=-Wall --pedantic-errors -g --std=c99
 
 main:
-	gcc -o ssherp main.c
+	gcc ${cflags} -o ssherp main.c

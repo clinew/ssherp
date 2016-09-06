@@ -10,13 +10,26 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 struct arguments {
 	char* node;
 	char* port;
+	// Protocol Version Exchange.
 	char* pve_protover;
 	char* pve_softver;
 	char* pve_comment;
+	// Algorithm Negotiation.
+	char* an_kex;
+	char* an_host_key_algs;
+	char* an_ciphers_ctos;
+	char* an_ciphers_stoc;
+	char* an_macs_ctos;
+	char* an_macs_stoc;
+	char* an_compression_ctos;
+	char* an_compression_stoc;
+	char* an_lang_ctos;
+	char* an_lang_stoc;
 };
 
 /**
@@ -36,8 +49,22 @@ void usage_print(char* message, char argv[]) {
 	}
 
 	// Print usage message.
-	fprintf(buffer, "USAGE: %s [OPT] HOST [PORT]\n", argv);
-	fprintf(buffer, "OPT: -h|--help Print usage message and exit.\n");
+	fprintf(buffer, "USAGE: %s [OPT] HOST [PORT]\n\n", argv);
+	fprintf(buffer, "OPT:\n");
+	fprintf(buffer, "    -a|--macs-stoc  MAC algorithms server-to-client.\n");
+	fprintf(buffer, "    -c|--comment Protocol  Version Exchange comment field.\n");
+	fprintf(buffer, "    -e|--ciphers-stoc  Encryption ciphers server-to-client.\n");
+	fprintf(buffer, "    -h|--help  Print usage message and exit.\n");
+	fprintf(buffer, "    -i|--ciphers-ctos  Encryption ciphers client-to-server.\n");
+	fprintf(buffer, "    -k|--host-keys  Host Key Algorithms.\n");
+	fprintf(buffer, "    -l|--lang-stoc  Languages server-to-client.\n");
+	fprintf(buffer, "    -m|--macs-ctos  MAC algorithms client-to-server.\n");
+	fprintf(buffer, "    -n|--lang-ctos  Languages client-to-server.\n");
+	fprintf(buffer, "    -p|--protover  Protocol version in the Protocol Version Exchange.\n");
+	fprintf(buffer, "    -s|--softver  Software version in the Protocol Version Exchange.\n");
+	fprintf(buffer, "    -x|--key-exchange  Key Exchange algorithm.\n");
+	fprintf(buffer, "    -y|--compression-ctos  Compression client-to-server.\n");
+	fprintf(buffer, "    -z|--compression-stoc  Compression server-to-client.\n");
 	fprintf(buffer, "HOST: The remote host to connect to.\n");
 	fprintf(buffer, "PORT: The remote port to connect to.\n");
 
@@ -48,12 +75,80 @@ void usage_print(char* message, char argv[]) {
 	exit(EXIT_SUCCESS);
 }
 
+/**
+ * Validates a list of algorithm names as per RFC 4251.
+ *
+ * Returns 0 on success, -1 on error.
+ */
+int arguments_validate_algnames(char* algnames) {
+	// 64 chars, no white space, commas, or control characters.
+	char* cur;
+	char* end;
+	char* tmp;
+
+	// Validation
+	cur = algnames;
+	while (1) {
+		(end = strchrnul(cur, ','));
+
+		// Length validation.
+		if (end - cur > 64) {
+			fprintf(stderr, "Alg name > 64 chars.\n");
+			return -1;
+		} else if (!(end - cur)) {
+			fprintf(stderr, "Empty alg name.\n");
+			return -1;
+		}
+
+		// Illegal characters.
+		int ampersand = 0;
+		for (tmp = cur; tmp < end; tmp++) {
+			// Check double '@'.
+			if ((*tmp) == '@') {
+				if (ampersand) {
+					fprintf(stderr, "Multiple '@' in "
+						"algname.\n");
+					return -1;
+				}
+				ampersand = 1;
+			}
+			// Control chars.
+			// Possibly broken on terms with weird encoding.
+			if ((*tmp) <= 32) {
+				fprintf(stderr, "ASCII control char in "
+					"algname.\n");
+				return -1;
+			}
+		}
+
+		// Loop increment.
+		if (!(*end)) {
+			break;
+		} else {
+			cur = end + 1;
+		}
+	}
+
+	// Return success.
+	return 0;
+}
+
 void arguments_parse(int argc, char* argv[], struct arguments* arguments) {
 	static struct option options[] = {
+		{"macs-stoc", required_argument, NULL, 'a'},
 		{"comment", required_argument, NULL, 'c'},
+		{"ciphers-stoc", required_argument, NULL, 'e'},
 		{"help", no_argument,  NULL, 'h'},
+		{"ciphers-ctos", required_argument, NULL, 'i'},
+		{"host-keys", required_argument, NULL, 'k'},
+		{"lang-stoc", required_argument, NULL, 'l'},
+		{"macs-ctos", required_argument, NULL, 'm'},
+		{"lang-ctos", required_argument, NULL, 'n'},
 		{"protover", required_argument, NULL, 'p'},
 		{"softver", required_argument, NULL, 's'},
+		{"key-exchange", required_argument, NULL, 'x'},
+		{"compression-ctos", required_argument, NULL, 'y'},
+		{"compression-stoc", required_argument, NULL, 'z'},
 		{0, 0, 0, 0}
 	};
 
@@ -62,28 +157,150 @@ void arguments_parse(int argc, char* argv[], struct arguments* arguments) {
 	arguments->pve_protover = "2.0";
 	arguments->pve_softver = "ssherp";
 	arguments->pve_comment = NULL;
+	arguments->an_kex = "curve25519-sha256@libssh.org,"
+		"ecdh-sha2-nistp256,"
+		"ecdh-sha2-nistp384,ecdh-sha2-nistp521,"
+		"diffie-hellman-group-exchange-sha256,"
+		"diffie-hellman-group-exchange-sha1,"
+		"diffie-hellman-group14-sha1,ext-info-c";
+	arguments->an_host_key_algs = "ecdsa-sha2-nistp256-cert-v01@openssh.com,"
+		"ecdsa-sha2-nistp384-cert-v01@openssh.com,"
+		"ecdsa-sha2-nistp521-cert-v01@openssh.com,"
+		"ssh-ed25519-cert-v01@openssh.com,"
+		"ssh-rsa-cert-v01@openssh.com,"
+		"ecdsa-sha2-nistp256,"
+		"ecdsa-sha2-nistp384,"
+		"ecdsa-sha2-nistp521,"
+		"ssh-ed25519,"
+		"rsa-sha2-512,"
+		"rsa-sha2-256,"
+		"ssh-rsa";
+	arguments->an_ciphers_ctos = "chacha20-poly1305@openssh.com,"
+		"aes128-ctr,"
+		"aes192-ctr,"
+		"aes256-ctr,"
+		"aes128-gcm@openssh.com,"
+		"aes256-gcm@openssh.com,"
+		"aes128-cbc,"
+		"aes192-cbc,"
+		"aes256-cbc,"
+		"3des-cbc";
+	arguments->an_ciphers_stoc = "chacha20-poly1305@openssh.com,"
+		"aes128-ctr,"
+		"aes192-ctr,"
+		"aes256-ctr,"
+		"aes128-gcm@openssh.com,"
+		"aes256-gcm@openssh.com,"
+		"aes128-cbc,"
+		"aes192-cbc,"
+		"aes256-cbc,3des-cbc";
+	arguments->an_macs_ctos = "umac-64-etm@openssh.com,"
+		"umac-128-etm@openssh.com,"
+		"hmac-sha2-256-etm@openssh.com,"
+		"hmac-sha2-512-etm@openssh.com,"
+		"hmac-sha1-etm@openssh.com,"
+		"umac-64@openssh.com,"
+		"umac-128@openssh.com,"
+		"hmac-sha2-256,"
+		"hmac-sha2-512,"
+		"hmac-sha1";
+	arguments->an_macs_stoc = "umac-64-etm@openssh.com,"
+		"umac-128-etm@openssh.com,"
+		"hmac-sha2-256-etm@openssh.com,"
+		"hmac-sha2-512-etm@openssh.com,"
+		"hmac-sha1-etm@openssh.com,"
+		"umac-64@openssh.com,"
+		"umac-128@openssh.com,"
+		"hmac-sha2-256,"
+		"hmac-sha2-512,"
+		"hmac-sha1";
+	arguments->an_compression_ctos = "none,"
+		"zlib@openssh.com,"
+		"zlib";
+	arguments->an_compression_stoc = "none,"
+		"zlib@openssh.com,"
+		"zlib";
+	arguments->an_lang_ctos = "";
+	arguments->an_lang_stoc = "";
 
 	// Parse optional arguments.
 	int c;
 	int index;
 	while (1) {
-		c = getopt_long(argc, argv, "c:hp:s:", options, &index);
+		c = getopt_long(argc, argv, "a:c:e:hi:k:l:m:n:p:s:x:y:z:", options, &index);
 		if (c == -1) {
 			// No more arguments.
 			break;
 		}
 		switch(c) {
+		case 'a':
+			if (arguments_validate_algnames(optarg)) {
+				usage_print("Invalid MACs-alg S-to-C", argv[0]);
+			}
+			arguments->an_macs_stoc = optarg;
+			break;
 		case 'c':
 			arguments->pve_comment = optarg;
 			break;
+		case 'e':
+			if (arguments_validate_algnames(optarg)) {
+				usage_print("Invalid ciphers S-to-C", argv[0]);
+			}
+			arguments->an_ciphers_stoc = optarg;
+			break;
 		case 'h':
 			usage_print(NULL, argv[0]);
+			break;
+		case 'i':
+			if (arguments_validate_algnames(optarg)) {
+				usage_print("Invalid ciphers C-to-S", argv[0]);
+			}
+			arguments->an_ciphers_ctos = optarg;
+			break;
+		case 'k':
+			if (arguments_validate_algnames(optarg)) {
+				usage_print("Invalid host key algnames",
+					argv[0]);
+			}
+			arguments->an_host_key_algs = optarg;
+			break;
+		case 'l': // Probably broken.
+			arguments->an_lang_stoc = optarg;
+			break;
+		case 'm':
+			if (arguments_validate_algnames(optarg)) {
+				usage_print("Invalid MACs C-to-S", argv[0]);
+			}
+			arguments->an_macs_ctos = optarg;
+			break;
+		case 'n': // Probably broken.
+			arguments->an_lang_ctos = optarg;
 			break;
 		case 'p':
 			arguments->pve_protover = optarg;
 			break;
 		case 's':
 			arguments->pve_softver = optarg;
+			break;
+		case 'x':
+			if (arguments_validate_algnames(optarg)) {
+				usage_print("Invalid kex algnames", argv[0]);
+			}
+			arguments->an_kex = optarg;
+			break;
+		case 'y':
+			if (arguments_validate_algnames(optarg)) {
+				usage_print("Invalid compression C-to-S",
+					argv[0]);
+			}
+			arguments->an_compression_ctos = optarg;
+			break;
+		case 'z':
+			if (arguments_validate_algnames(optarg)) {
+				usage_print("Invalid compression S-to-C",
+					argv[0]);
+			}
+			arguments->an_compression_stoc = optarg;
 			break;
 		case '?':
 			usage_print("Unknown option", argv[0]);
@@ -105,12 +322,113 @@ void arguments_parse(int argc, char* argv[], struct arguments* arguments) {
 	}
 }
 
+/*
+ * Given the specified arguments, return a packet suitable for SSH Algorithm
+ * Negotiation (RFC 4253) and outputs the size of said packet.  The packet
+ * must be freed after use.  Returns 'NULL' on failure.
+ */
+char* ssherp_algneg_packet(struct arguments* arguments, size_t* size_out) {
+	// Create algorithm negotiation packet.
+	int i;
+	size_t seek;
+	char* sendbuf;
+	size_t size;
+	char* tmp;
+
+	// Add packet type and cookie.
+	size = 17;
+	sendbuf = malloc(size);
+	sendbuf[0] = 20; // SSH_MSG_KEXINIT
+	strncpy(&sendbuf[1], "LOLZSORANDOMXDDD", 16);
+	seek = 17;
+
+	// Add Algorithm Negotation ("ANs") name lists.
+	char* ans[10];
+	ans[0] = arguments->an_kex;
+	ans[1] = arguments->an_host_key_algs;
+	ans[2] = arguments->an_ciphers_ctos;
+	ans[3] = arguments->an_ciphers_stoc;
+	ans[4] = arguments->an_macs_ctos;
+	ans[5] = arguments->an_macs_stoc;
+	ans[6] = arguments->an_compression_ctos;
+	ans[7] = arguments->an_compression_stoc;
+	ans[8] = arguments->an_lang_ctos;
+	ans[9] = arguments->an_lang_stoc;
+	for (i = 0; i < (sizeof(ans)/sizeof(char*)); i++) {
+		size_t len = strlen(ans[i]);
+		size_t nlen = htonl((uint32_t)len);
+		size += len + 4;
+		if (!(tmp = realloc(sendbuf, size))) {
+			perror("Reallocating for AN");
+			free(sendbuf);
+			return NULL;
+		}
+		memcpy(&sendbuf[seek], &nlen, sizeof(uint32_t));
+		seek += 4;
+		strncpy(&sendbuf[seek], ans[i], len);
+		seek += len;
+	}
+
+	// Add boolean and extensions.
+	size += 1 + 4;
+	if (!(tmp = realloc(sendbuf, size))) {
+		perror("Reallocating for end bits");
+		free(sendbuf);
+		return NULL;
+	}
+	memset(&sendbuf[seek], 0, 5);
+
+	// Return the packet.
+	*size_out = size;
+	return sendbuf;
+}
+
+/**
+ * Wraps the specified payload in SSH's Binary Packet Protocol, except only
+ * sort of since no encryption and MAC is done.  Returns a pointer to the
+ * wrapped packet or 'NULL' on failure.
+ */
+char* ssherp_bpp_packet(char* payload, size_t size_in, size_t* size_out) {
+	int i;
+
+	// Calculate overall packet size.
+	size_t size_tmp = size_in + 4 + 1;
+	uint8_t padding = 16 + (8 - (size_tmp % 8));
+	size_tmp += padding;
+
+	// Allocate space for packet.
+	char* packet = malloc(size_tmp);
+	if (!packet) {
+		fprintf(stderr, "Unable to allocate space for packet\n");
+		return NULL;
+	}
+
+	// Create packet.
+	uint32_t packet_length = htonl(size_tmp - 4);
+	size_t seek;
+	seek = 0;
+	memcpy(packet, &packet_length, sizeof(uint32_t));
+	seek += 4;
+	packet[seek] = padding;
+	seek += 1;
+	memcpy(&packet[seek], payload, size_in);
+	seek += size_in;
+	for (i = 0; i < padding; i++) {
+		packet[seek++] = 'x'; // Not very random.
+	}
+
+	// Return the packet.
+	*size_out = size_tmp;
+	return packet;
+}
+
 int main(int argc, char* argv[]) {
 	struct addrinfo addrinfo_hint;
 	struct addrinfo* addrinfo_res;
 	struct arguments arguments;
 	int fd;
 	int ret;
+	int status = EXIT_FAILURE;
 
 	// Parse arguments.
 	arguments_parse(argc, argv, &arguments);
@@ -125,8 +443,8 @@ int main(int argc, char* argv[]) {
 	addrinfo_hint.ai_family = AF_INET;
 	addrinfo_hint.ai_socktype = SOCK_STREAM;
 	addrinfo_hint.ai_protocol = IPPROTO_TCP;
-	if (ret = getaddrinfo(arguments.node, arguments.port,
-		&addrinfo_hint, &addrinfo_res)) {
+	if ((ret = getaddrinfo(arguments.node, arguments.port,
+		&addrinfo_hint, &addrinfo_res))) {
 		fprintf(stderr, "'getaddrinfo': %s\n", gai_strerror(ret));
 		if (ret == EAI_SYSTEM) {
 			perror("'getaddrinfo'");
@@ -151,23 +469,51 @@ int main(int argc, char* argv[]) {
 		perror("Unable to write Protocol Version Exchange\n");
 		goto out1;
 	}
-	char readbuf[256];
+	char readbuf[2048];
 	memset(readbuf, 0, sizeof(readbuf));
 	// TODO: Handle potential pre-messages, which is a giant PITA.
 	if ((ret = read(fd, readbuf, sizeof(readbuf))) == -1) {
 		perror("Unable to read PVE from server.\n");
 		goto out1;
 	}
+	fprintf(stderr, "Read bytes: %i\n", ret);
 	if (strncmp(readbuf, "SSH-", 4)) {
 		fprintf(stderr, "Unexpected protocol ident");
 		goto out1;
 	}
+	char* end;
+	if (!(end = strstr(readbuf, "\r\n"))) {
+		fprintf(stderr, "No end to protocol ident");
+		goto out1;
+	}
+
+	// Send Algorithm Negotiation Packet.
+	size_t payload_len;
+	char* payload = ssherp_algneg_packet(&arguments, &payload_len);
+	if (!payload) {
+		fprintf(stderr, "Error creating payload");
+		goto out1;
+	}
+	size_t packet_len;
+	char* packet = ssherp_bpp_packet(payload, payload_len, &packet_len);
+	if (!packet) {
+		fprintf(stderr, "Error creating packet");
+		goto out2;
+	}
+	if (write(fd, packet, packet_len) < packet_len) {
+		perror("Unable to write entire packet");
+		goto out3;
+	}
 
 	// Exit the program.
-	exit(EXIT_SUCCESS);
+	status = EXIT_SUCCESS;
+out3:
+	free(packet);
+out2:
+	free(payload);
 out1:
 	if (close(fd) == -1) {
 		perror("Error closing socket");
 	}
-	exit(EXIT_FAILURE);
+	exit(status);
 }
