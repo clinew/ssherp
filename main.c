@@ -146,6 +146,7 @@ void usage_print(char* message, char argv[]) {
 	fprintf(buffer, "    -c|--comment  Protocol Version Exchange comment field.\n");
 	fprintf(buffer, "    -d|--defaults  Print argument defaults.\n");
 	fprintf(buffer, "    -e|--ciphers-stoc  Encryption ciphers server-to-client.\n");
+	fprintf(buffer, "    -f|--force  Do not validate spoofed input for correctness.\n");
 	fprintf(buffer, "    -h|--help  Print usage message and exit.\n");
 	fprintf(buffer, "    -i|--ciphers-ctos  Encryption ciphers client-to-server.\n");
 	fprintf(buffer, "    -k|--host-keys  Host Key Algorithms.\n");
@@ -231,6 +232,7 @@ void arguments_parse(int argc, char* argv[], struct arguments* arguments) {
 		{"comment", required_argument, NULL, 'c'},
 		{"ciphers-stoc", required_argument, NULL, 'e'},
 		{"defaults", no_argument, NULL, 'd'},
+		{"force", no_argument, NULL, 'f'},
 		{"help", no_argument,  NULL, 'h'},
 		{"ciphers-ctos", required_argument, NULL, 'i'},
 		{"host-keys", required_argument, NULL, 'k'},
@@ -263,18 +265,16 @@ void arguments_parse(int argc, char* argv[], struct arguments* arguments) {
 
 	// Parse optional arguments.
 	int c;
+	int force = 0;
 	int index;
 	while (1) {
-		c = getopt_long(argc, argv, "a:c:de:hi:k:l:m:n:p:s:x:y:z:", options, &index);
+		c = getopt_long(argc, argv, "a:c:de:fhi:k:l:m:n:p:s:x:y:z:", options, &index);
 		if (c == -1) {
 			// No more arguments.
 			break;
 		}
 		switch(c) {
 		case 'a':
-			if (arguments_validate_algnames(optarg)) {
-				usage_print("Invalid MACs-alg S-to-C", argv[0]);
-			}
 			arguments->an_macs_stoc = optarg;
 			break;
 		case 'c':
@@ -284,34 +284,24 @@ void arguments_parse(int argc, char* argv[], struct arguments* arguments) {
 			usage_defaults();
 			break;
 		case 'e':
-			if (arguments_validate_algnames(optarg)) {
-				usage_print("Invalid ciphers S-to-C", argv[0]);
-			}
 			arguments->an_ciphers_stoc = optarg;
+			break;
+		case 'f':
+			force = 1;
 			break;
 		case 'h':
 			usage_print(NULL, argv[0]);
 			break;
 		case 'i':
-			if (arguments_validate_algnames(optarg)) {
-				usage_print("Invalid ciphers C-to-S", argv[0]);
-			}
 			arguments->an_ciphers_ctos = optarg;
 			break;
 		case 'k':
-			if (arguments_validate_algnames(optarg)) {
-				usage_print("Invalid host key algnames",
-					argv[0]);
-			}
 			arguments->an_host_key_algs = optarg;
 			break;
 		case 'l': // Probably broken.
 			arguments->an_lang_stoc = optarg;
 			break;
 		case 'm':
-			if (arguments_validate_algnames(optarg)) {
-				usage_print("Invalid MACs C-to-S", argv[0]);
-			}
 			arguments->an_macs_ctos = optarg;
 			break;
 		case 'n': // Probably broken.
@@ -324,23 +314,12 @@ void arguments_parse(int argc, char* argv[], struct arguments* arguments) {
 			arguments->pve_softver = optarg;
 			break;
 		case 'x':
-			if (arguments_validate_algnames(optarg)) {
-				usage_print("Invalid kex algnames", argv[0]);
-			}
 			arguments->an_kex = optarg;
 			break;
 		case 'y':
-			if (arguments_validate_algnames(optarg)) {
-				usage_print("Invalid compression C-to-S",
-					argv[0]);
-			}
 			arguments->an_compression_ctos = optarg;
 			break;
 		case 'z':
-			if (arguments_validate_algnames(optarg)) {
-				usage_print("Invalid compression S-to-C",
-					argv[0]);
-			}
 			arguments->an_compression_stoc = optarg;
 			break;
 		case '?':
@@ -360,6 +339,39 @@ void arguments_parse(int argc, char* argv[], struct arguments* arguments) {
 		arguments->port = argv[optind];
 	} else {
 		arguments->port = "22";
+	}
+
+	// Validate algorithm names.
+	if (force) {
+		// Don't validate.
+		return;
+	}
+	if (arguments_validate_algnames(arguments->an_macs_stoc)) {
+		usage_print("Invalid MACs-alg S-to-C", argv[0]);
+	}
+	if (arguments_validate_algnames(arguments->an_ciphers_stoc)) {
+		usage_print("Invalid ciphers S-to-C", argv[0]);
+	}
+	if (arguments_validate_algnames(arguments->an_ciphers_ctos)) {
+		usage_print("Invalid ciphers C-to-S", argv[0]);
+	}
+	if (arguments_validate_algnames(arguments->an_host_key_algs)) {
+		usage_print("Invalid host key algnames",
+			argv[0]);
+	}
+	if (arguments_validate_algnames(arguments->an_kex)) {
+		usage_print("Invalid kex algnames", argv[0]);
+	}
+	if (arguments_validate_algnames(arguments->an_macs_ctos)) {
+		usage_print("Invalid MACs C-to-S", argv[0]);
+	}
+	if (arguments_validate_algnames(arguments->an_compression_ctos)) {
+		usage_print("Invalid compression C-to-S",
+			argv[0]);
+	}
+	if (arguments_validate_algnames(arguments->an_compression_stoc)) {
+		usage_print("Invalid compression S-to-C",
+			argv[0]);
 	}
 }
 
