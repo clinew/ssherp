@@ -32,6 +32,97 @@ struct arguments {
 	char* an_lang_stoc;
 };
 
+char* arg_pve_protover_default = "2.0";
+char* arg_pve_softver_default = "ssherp";
+char* arg_pve_comment_default = NULL;
+char* arg_an_kex_default = "curve25519-sha256@libssh.org,"
+		"ecdh-sha2-nistp256,"
+		"ecdh-sha2-nistp384,ecdh-sha2-nistp521,"
+		"diffie-hellman-group-exchange-sha256,"
+		"diffie-hellman-group-exchange-sha1,"
+		"diffie-hellman-group14-sha1,ext-info-c";
+char* arg_an_host_key_algs_default = "ecdsa-sha2-nistp256-cert-v01@openssh.com,"
+		"ecdsa-sha2-nistp384-cert-v01@openssh.com,"
+		"ecdsa-sha2-nistp521-cert-v01@openssh.com,"
+		"ssh-ed25519-cert-v01@openssh.com,"
+		"ssh-rsa-cert-v01@openssh.com,"
+		"ecdsa-sha2-nistp256,"
+		"ecdsa-sha2-nistp384,"
+		"ecdsa-sha2-nistp521,"
+		"ssh-ed25519,"
+		"rsa-sha2-512,"
+		"rsa-sha2-256,"
+		"ssh-rsa";
+char* arg_an_ciphers_ctos_default = "chacha20-poly1305@openssh.com,"
+		"aes128-ctr,"
+		"aes192-ctr,"
+		"aes256-ctr,"
+		"aes128-gcm@openssh.com,"
+		"aes256-gcm@openssh.com,"
+		"aes128-cbc,"
+		"aes192-cbc,"
+		"aes256-cbc,"
+		"3des-cbc";
+char* arg_an_ciphers_stoc_default = "chacha20-poly1305@openssh.com,"
+		"aes128-ctr,"
+		"aes192-ctr,"
+		"aes256-ctr,"
+		"aes128-gcm@openssh.com,"
+		"aes256-gcm@openssh.com,"
+		"aes128-cbc,"
+		"aes192-cbc,"
+		"aes256-cbc,3des-cbc";
+char* arg_an_macs_ctos_default = "umac-64-etm@openssh.com,"
+		"umac-128-etm@openssh.com,"
+		"hmac-sha2-256-etm@openssh.com,"
+		"hmac-sha2-512-etm@openssh.com,"
+		"hmac-sha1-etm@openssh.com,"
+		"umac-64@openssh.com,"
+		"umac-128@openssh.com,"
+		"hmac-sha2-256,"
+		"hmac-sha2-512,"
+		"hmac-sha1";
+char* arg_an_macs_stoc_default = "umac-64-etm@openssh.com,"
+		"umac-128-etm@openssh.com,"
+		"hmac-sha2-256-etm@openssh.com,"
+		"hmac-sha2-512-etm@openssh.com,"
+		"hmac-sha1-etm@openssh.com,"
+		"umac-64@openssh.com,"
+		"umac-128@openssh.com,"
+		"hmac-sha2-256,"
+		"hmac-sha2-512,"
+		"hmac-sha1";
+char* arg_an_compression_ctos_default = "none,"
+		"zlib@openssh.com,"
+		"zlib";
+char* arg_an_compression_stoc_default = "none,"
+		"zlib@openssh.com,"
+		"zlib";
+char* arg_an_lang_ctos_default = "";
+char* arg_an_lang_stoc_default = "";
+
+/**
+ * Print argument defaults and exit the program.
+ */
+void usage_defaults() {
+	printf("Protocol Validation Exchange:\n");
+	printf("\tProtocol Version: '%s'\n", arg_pve_protover_default);
+	printf("\tSoftware Version: '%s'\n", arg_pve_softver_default);
+	printf("\tComment: '%s'\n", arg_pve_comment_default);
+	printf("Algorithm Negotiation:\n");
+	printf("\tKex Exchange Algorithms: '%s'\n", arg_an_kex_default);
+	printf("\tHost Key Algorithms: '%s'\n", arg_an_host_key_algs_default);
+	printf("\tEncryption Ciphers (Client-to_Server): '%s'\n", arg_an_ciphers_ctos_default);
+	printf("\tEncryption Ciphers (Server-to-Client): '%s'\n", arg_an_ciphers_stoc_default);
+	printf("\tMACs (Client-to-Server): '%s'\n", arg_an_macs_ctos_default);
+	printf("\tMACs (Server-to-Client): '%s'\n", arg_an_macs_stoc_default);
+	printf("\tCompression (Client-to-Server): '%s'\n", arg_an_compression_ctos_default);
+	printf("\tCompression (Server-to-Client): '%s'\n", arg_an_compression_stoc_default);
+	printf("\tLanguages (Client-to-Server): '%s'\n", arg_an_lang_ctos_default);
+	printf("\tLanguages (Server-to-Client): '%s'\n", arg_an_lang_stoc_default);
+	exit(EXIT_SUCCESS);
+}
+
 /**
  * Print usage message and exit the program.
  */
@@ -52,7 +143,8 @@ void usage_print(char* message, char argv[]) {
 	fprintf(buffer, "USAGE: %s [OPT] HOST [PORT]\n\n", argv);
 	fprintf(buffer, "OPT:\n");
 	fprintf(buffer, "    -a|--macs-stoc  MAC algorithms server-to-client.\n");
-	fprintf(buffer, "    -c|--comment Protocol  Version Exchange comment field.\n");
+	fprintf(buffer, "    -c|--comment  Protocol Version Exchange comment field.\n");
+	fprintf(buffer, "    -d|--defaults  Print argument defaults.\n");
 	fprintf(buffer, "    -e|--ciphers-stoc  Encryption ciphers server-to-client.\n");
 	fprintf(buffer, "    -h|--help  Print usage message and exit.\n");
 	fprintf(buffer, "    -i|--ciphers-ctos  Encryption ciphers client-to-server.\n");
@@ -138,6 +230,7 @@ void arguments_parse(int argc, char* argv[], struct arguments* arguments) {
 		{"macs-stoc", required_argument, NULL, 'a'},
 		{"comment", required_argument, NULL, 'c'},
 		{"ciphers-stoc", required_argument, NULL, 'e'},
+		{"defaults", no_argument, NULL, 'd'},
 		{"help", no_argument,  NULL, 'h'},
 		{"ciphers-ctos", required_argument, NULL, 'i'},
 		{"host-keys", required_argument, NULL, 'k'},
@@ -154,80 +247,25 @@ void arguments_parse(int argc, char* argv[], struct arguments* arguments) {
 
 	// Set argument defaults.
 	memset(arguments, 0, sizeof(*arguments));
-	arguments->pve_protover = "2.0";
-	arguments->pve_softver = "ssherp";
-	arguments->pve_comment = NULL;
-	arguments->an_kex = "curve25519-sha256@libssh.org,"
-		"ecdh-sha2-nistp256,"
-		"ecdh-sha2-nistp384,ecdh-sha2-nistp521,"
-		"diffie-hellman-group-exchange-sha256,"
-		"diffie-hellman-group-exchange-sha1,"
-		"diffie-hellman-group14-sha1,ext-info-c";
-	arguments->an_host_key_algs = "ecdsa-sha2-nistp256-cert-v01@openssh.com,"
-		"ecdsa-sha2-nistp384-cert-v01@openssh.com,"
-		"ecdsa-sha2-nistp521-cert-v01@openssh.com,"
-		"ssh-ed25519-cert-v01@openssh.com,"
-		"ssh-rsa-cert-v01@openssh.com,"
-		"ecdsa-sha2-nistp256,"
-		"ecdsa-sha2-nistp384,"
-		"ecdsa-sha2-nistp521,"
-		"ssh-ed25519,"
-		"rsa-sha2-512,"
-		"rsa-sha2-256,"
-		"ssh-rsa";
-	arguments->an_ciphers_ctos = "chacha20-poly1305@openssh.com,"
-		"aes128-ctr,"
-		"aes192-ctr,"
-		"aes256-ctr,"
-		"aes128-gcm@openssh.com,"
-		"aes256-gcm@openssh.com,"
-		"aes128-cbc,"
-		"aes192-cbc,"
-		"aes256-cbc,"
-		"3des-cbc";
-	arguments->an_ciphers_stoc = "chacha20-poly1305@openssh.com,"
-		"aes128-ctr,"
-		"aes192-ctr,"
-		"aes256-ctr,"
-		"aes128-gcm@openssh.com,"
-		"aes256-gcm@openssh.com,"
-		"aes128-cbc,"
-		"aes192-cbc,"
-		"aes256-cbc,3des-cbc";
-	arguments->an_macs_ctos = "umac-64-etm@openssh.com,"
-		"umac-128-etm@openssh.com,"
-		"hmac-sha2-256-etm@openssh.com,"
-		"hmac-sha2-512-etm@openssh.com,"
-		"hmac-sha1-etm@openssh.com,"
-		"umac-64@openssh.com,"
-		"umac-128@openssh.com,"
-		"hmac-sha2-256,"
-		"hmac-sha2-512,"
-		"hmac-sha1";
-	arguments->an_macs_stoc = "umac-64-etm@openssh.com,"
-		"umac-128-etm@openssh.com,"
-		"hmac-sha2-256-etm@openssh.com,"
-		"hmac-sha2-512-etm@openssh.com,"
-		"hmac-sha1-etm@openssh.com,"
-		"umac-64@openssh.com,"
-		"umac-128@openssh.com,"
-		"hmac-sha2-256,"
-		"hmac-sha2-512,"
-		"hmac-sha1";
-	arguments->an_compression_ctos = "none,"
-		"zlib@openssh.com,"
-		"zlib";
-	arguments->an_compression_stoc = "none,"
-		"zlib@openssh.com,"
-		"zlib";
-	arguments->an_lang_ctos = "";
-	arguments->an_lang_stoc = "";
+	arguments->pve_protover = arg_pve_protover_default;
+	arguments->pve_softver = arg_pve_softver_default;
+	arguments->pve_comment = arg_pve_comment_default;
+	arguments->an_kex = arg_an_kex_default;
+	arguments->an_host_key_algs = arg_an_host_key_algs_default;
+	arguments->an_ciphers_ctos = arg_an_ciphers_ctos_default;
+	arguments->an_ciphers_stoc = arg_an_ciphers_stoc_default;
+	arguments->an_macs_ctos = arg_an_macs_ctos_default;
+	arguments->an_macs_stoc = arg_an_macs_stoc_default;
+	arguments->an_compression_ctos = arg_an_compression_ctos_default;
+	arguments->an_compression_stoc = arg_an_compression_stoc_default;
+	arguments->an_lang_ctos = arg_an_lang_ctos_default;
+	arguments->an_lang_stoc = arg_an_lang_stoc_default;
 
 	// Parse optional arguments.
 	int c;
 	int index;
 	while (1) {
-		c = getopt_long(argc, argv, "a:c:e:hi:k:l:m:n:p:s:x:y:z:", options, &index);
+		c = getopt_long(argc, argv, "a:c:de:hi:k:l:m:n:p:s:x:y:z:", options, &index);
 		if (c == -1) {
 			// No more arguments.
 			break;
@@ -241,6 +279,9 @@ void arguments_parse(int argc, char* argv[], struct arguments* arguments) {
 			break;
 		case 'c':
 			arguments->pve_comment = optarg;
+			break;
+		case 'd':
+			usage_defaults();
 			break;
 		case 'e':
 			if (arguments_validate_algnames(optarg)) {
